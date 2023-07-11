@@ -6,7 +6,6 @@ from fastapi import Request
 import typing as t
 import uvicorn
 
-import PyPDF2
 
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.vectorstores import Pinecone
