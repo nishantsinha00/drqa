@@ -1,14 +1,53 @@
 from fastapi import FastAPI, Depends, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import List
 from fastapi import Request
-from config import settings
 import typing as t
 import uvicorn
+
+import PyPDF2
+
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.vectorstores import Pinecone
+import pinecone
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.llms import OpenAI
+from langchain.memory import ConversationBufferMemory
+from langchain import OpenAI, LLMMathChain
+from langchain.chat_models import ChatOpenAI
+from langchain.chains import RetrievalQA, ConversationalRetrievalChain
+from langchain.document_loaders import PyPDFLoader, TextLoader
+from langchain.document_loaders import UnstructuredFileLoader
+from langchain.prompts import PromptTemplate
+
+from langchain.agents import initialize_agent, Tool
+from langchain.agents import AgentType
+from langchain.tools import BaseTool
+
+from langchain.chains.summarize import load_summarize_chain
+
+from langchain.callbacks import get_openai_callback
+
+import textwrap
+from dotenv import load_dotenv
+
 import os
 
-
-from qdrant_engine import QdrantIndex
+load_dotenv()
+index_name = "langchain-demo"
+pinecone.init(api_key=os.environ["PINECONE_API_KEY"], 
+              environment=os.environ["PINECONE_ENV"])
+if index_name not in pinecone.list_indexes():
+    # we create a new index
+    pinecone.create_index(
+        name=index_name,
+        metric='cosine',
+        dimension=1536  # 1536 dim of text-embedding-ada-002
+    )
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+embeddings = OpenAIEmbeddings(openai_api_key=os.environ["OPENAI_API_KEY"])
+docs = []
 # from sentence_transformers import SentenceTransformer
 
 
@@ -32,16 +71,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def pdf_to_doc(pdf_files):
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+    i = 0
+    docs = []
+    for pdf_file in pdf_files:
+        loader = PyPDFLoader(pdf_file)
+        pages = loader.load_and_split()
+        docs.extend(text_splitter.split_documents(pages))
+        
+    return docs
 
-
-
-# Load embedding model
-# embedding_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2', device='cpu')
-
-# Load the Qdrant index
-qdrant_index = QdrantIndex(settings.qdrant_host, settings.qdrant_api_key, False)
-
-
+def get_qa_chain():
+    docsearch = Pinecone.from_existing_index(index_name, embeddings)
+    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True, output_key='answer')
+    prompt_template = """Use the following pieces of context to answer the question at the end. If the information is not
+    provided in the context, please do not make one up.
+    
+    {context}
+    
+    Question: {question}
+    """
+    PROMPT = PromptTemplate(
+        template=prompt_template, input_variables=["context", "question"]
+    )
+    qa = ConversationalRetrievalChain.from_llm(
+        ChatOpenAI(temperature=0.2, model="gpt-3.5-turbo"),
+        docsearch.as_retriever(),
+        memory = memory,
+        combine_docs_chain_kwargs={"prompt": PROMPT},
+        return_source_documents=True
+    ) 
+    return qa
 
 class UserQuery(BaseModel):
     query: str
@@ -55,39 +116,54 @@ async def root(request: Request):
 
 
 
-@app.post("/upload-file")
-async def upload_file(request: Request, file: UploadFile):
-    filename = file.filename
-    status = "success"
-    print(file.size)
-    try:
-        filepath = os.path.join('app','documents', os.path.basename(filename))
-        contents = await file.read()
-        with open(filepath, 'wb') as f:
-            f.write(contents)
-        
-        qdrant_index.insert_into_index(filepath, filename)
-        
-    except Exception as ex:
-        print(str(ex))
-        status = "error"
+@app.post("/upload-files")
+async def upload_file(request: Request, files: List[UploadFile]):
+    
+    for file in files:
+        filename = file.filename
+        status = "success"
+        filepaths = []
+        print(file.size)
+        try:
+            if not os.path.exists('app/documents'):
+                os.makedirs('app/documents')
+            filepath = os.path.join('app','documents', os.path.basename(filename))
+            contents = await file.read()
+            with open(filepath, 'wb') as f:
+                f.write(contents)
+            loader = PyPDFLoader(filepath)
+            pages = loader.load_and_split()
+            docs.extend(text_splitter.split_documents(pages))
+        except Exception as ex:
+            print(str(ex))
+            status = "error"
+            if filepath is not None and os.path.exists(filepath):
+                os.remove(filepath)
+            # raise HTTPException(status_code=500, detail="Your file received but couldn't be stored!")
+    
         if filepath is not None and os.path.exists(filepath):
             os.remove(filepath)
-        # raise HTTPException(status_code=500, detail="Your file received but couldn't be stored!")
-
-    if filepath is not None and os.path.exists(filepath):
-        os.remove(filepath)
+    docsearch = Pinecone.from_documents(docs, embeddings, index_name=index_name)
     return {"filename": filename, "status": status}
-    
 
 
 @app.post("/query")
 async def query_index(request: Request, input_query: UserQuery):
-    print(input_query)
-    generated_response, relevant_docs = qdrant_index.generate_response(question=input_query.query)
-    print(generated_response)
-    return {"response": generated_response, "relevant_docs": relevant_docs}
+    qa_chain = get_qa_chain()
+    result = qa_chain({"question": input_query.query})
+    print(result)
+    return {"response": result['answer'], "relevant_docs": result['source_documents']}
 
+
+@app.post("/summarize")
+async def summarize(request: Request):
+    llm = OpenAI(temperature=0)
+    chain = load_summarize_chain(llm, 
+                             chain_type="map_reduce",
+                             verbose = True)
+    output_summary = chain.run(docs)
+    wrapped_text = textwrap.fill(output_summary, width=100)
+    return {"response": wrapped_text}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", reload=True, port=8000)
