@@ -6,6 +6,7 @@ from fastapi import Request
 import typing as t
 import uvicorn
 
+import azure.ai.vision as sdk
 
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.vectorstores import Pinecone
@@ -18,6 +19,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA, ConversationalRetrievalChain
 from langchain.document_loaders import PyPDFLoader, TextLoader
 from langchain.document_loaders import UnstructuredFileLoader
+from langchain.docstore.document import Document
 from langchain.prompts import PromptTemplate
 
 from langchain.agents import initialize_agent, Tool
@@ -70,14 +72,49 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def pdf_to_doc(pdf_files):
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-    i = 0
+class Reader:
+    def __init__(self, img):
+        self.img = img
+        service_options = sdk.VisionServiceOptions(os.environ["AZURE_VISION_ENDPOINT"],
+                                           os.environ["AZURE_VISION_KEY"])
+        vision_source = sdk.VisionSource(filename=self.img)
+        analysis_options = sdk.ImageAnalysisOptions()
+        analysis_options.features = (
+            sdk.ImageAnalysisFeature.CAPTION |
+            sdk.ImageAnalysisFeature.TEXT
+            )
+        analysis_options.language = "en"
+        analysis_options.gender_neutral_caption = True
+        self.analyzer = sdk.ImageAnalyzer(service_options, vision_source, analysis_options)
+
+    def __call__(self):
+        return self.extract_text()
+
+    def extract_text(self):
+        result = self.analyzer.analyze()
+
+        lines = []
+
+        for line in result.text.lines:
+            lines.append(line.content)
+            
+        extracted_text = "\n".join(lines)
+
+        return extracted_text
+def img_to_doc(img_file):
     docs = []
-    for pdf_file in pdf_files:
-        loader = PyPDFLoader(pdf_file)
-        pages = loader.load_and_split()
-        docs.extend(text_splitter.split_documents(pages))
+    reader = Reader(img=img_file)
+    text = reader()
+    docs.append(Document(page_content=text, metadata={"source": img_file, 'page': 0}))
+    docs = text_splitter.split_documents(docs)
+    return docs
+    
+        
+def pdf_to_doc(pdf_file):
+    i = 0
+    loader = PyPDFLoader(pdf_file)
+    pages = loader.load_and_split()
+    docs = text_splitter.split_documents(pages)
         
     return docs
 
@@ -121,7 +158,6 @@ async def upload_file(request: Request, files: List[UploadFile]):
     for file in files:
         filename = file.filename
         status = "success"
-        filepaths = []
         print(file.size)
         try:
             if not os.path.exists('app/documents'):
@@ -130,9 +166,10 @@ async def upload_file(request: Request, files: List[UploadFile]):
             contents = await file.read()
             with open(filepath, 'wb') as f:
                 f.write(contents)
-            loader = PyPDFLoader(filepath)
-            pages = loader.load_and_split()
-            docs.extend(text_splitter.split_documents(pages))
+            if(os.path.splitext(filepath)[1] == '.pdf'):
+                docs.extend(pdf_to_doc(filepath))
+            else:
+                docs.extend(img_to_doc(filepath))
         except Exception as ex:
             print(str(ex))
             status = "error"
