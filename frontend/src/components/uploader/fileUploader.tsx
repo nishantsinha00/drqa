@@ -23,17 +23,18 @@ import FileDetails from '../fileDetails/FileDetails';
 const FILE_SIZE = 5000000;
 
 const FileUploader = () => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [disabled, setDisabled] = useState<boolean>(true);
   const [open, setOpen] = useState<boolean>(false);
-  const [uploadedFile, setUploadedFile] = useState<string>('');
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFilesSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
-      if (event.target.files[0].size < FILE_SIZE) {
-        setSelectedFile(event.target.files[0]);
+      const files = Array.from(event.target.files);
+
+      if (files.every((file) => file.size < FILE_SIZE)) {
+        setSelectedFiles(event.target.files);
         setUploadProgress(0);
         setDisabled(false);
       } else {
@@ -42,12 +43,13 @@ const FileUploader = () => {
       }
     }
   };
+
   const handleClose = () => {
     setOpen(false);
   };
 
-  const handleFileUpload = async () => {
-    if (selectedFile) {
+  const handleFilesUpload = async () => {
+    if (selectedFiles) {
       const config: Config = {
         onUploadProgress: (progressEvent: AxiosProgressEvent) => {
           const progressPercent = progressEvent.total
@@ -60,11 +62,14 @@ const FileUploader = () => {
         },
       };
 
-      const result = await uploadDocument('upload-file', selectedFile, config);
+      const result = await uploadDocument('upload-files', selectedFiles, config);
       setUploadProgress(0);
       setDisabled(true);
-      setUploadedFile(result.data.filename);
-      setUploadedFiles([...uploadedFiles, result.data.filename]);
+
+      // Assuming the server returns the filenames of all uploaded files
+      if(result.data && result.data.filename) {
+        setUploadedFiles([...uploadedFiles, result.data.filename]);
+      }
     }
   };
 
@@ -80,7 +85,7 @@ const FileUploader = () => {
                 disabled={disabled}
                 component="label"
                 startIcon={<CloudUploadIcon />}
-                onClick={handleFileUpload}
+                onClick={handleFilesUpload}
               >
                 Upload
               </Button>
@@ -95,13 +100,13 @@ const FileUploader = () => {
                 component="label"
                 color="secondary"
               >
-                Select a File
+                Select Files
                 <input
                   hidden
                   accept=".pdf"
                   multiple
                   type="file"
-                  onChange={handleFileSelect}
+                  onChange={handleFilesSelect}
                 />
               </Button>
             </Box>
@@ -111,7 +116,7 @@ const FileUploader = () => {
               autoHideDuration={6000}
               open={open}
               onClose={handleClose}
-              message="Please select a smaller file! It's exceeding 5MB"
+              message="Please select smaller files! They're exceeding 5MB"
               key={'top-left'}
             />
           </Box>
@@ -128,34 +133,10 @@ const FileUploader = () => {
         <Box mt={2}>
           <CircularProgress
             sx={{ margin: 'auto', width: '100%' }}
-            // variant="determinate"
-            // value={uploadProgress}
           />
 
-          {/* <LinearProgressWithLabel
-            sx={{ margin: 'auto', width: '100%' }}
-            variant="determinate"
-            value={uploadProgress}
-          /> */}
         </Box>
       )}
-    </Box>
-  );
-};
-
-const LinearProgressWithLabel = (
-  props: LinearProgressProps & { value: number }
-) => {
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-      <Box sx={{ width: '100%', mr: 1 }}>
-        <LinearProgress variant="determinate" {...props} />
-      </Box>
-      <Box sx={{ minWidth: 35 }}>
-        <Typography variant="body2" color="text.secondary">{`${Math.round(
-          props.value
-        )}%`}</Typography>
-      </Box>
     </Box>
   );
 };
