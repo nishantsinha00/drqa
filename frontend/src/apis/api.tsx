@@ -22,21 +22,28 @@ export interface fileUploadResponse {
 
 export const uploadDocument = async (
   endpoint: string,
-  file: File,
+  files: FileList, // Changed from File to FileList
   config: Config
 ) => {
   const formData = new FormData();
-  formData.append('file', file);
+
+  // Loop over each file and append it to the formData
+  for(let i = 0; i < files.length; i++) {
+    formData.append('files', files[i]); // The 'files' here should match with the backend parameter name
+  }
+
   const result: fileUploadResponse = await axios
     .post(`${uploadUrl}/${endpoint}`, formData, config)
     .then((response: AxiosResponse) => {
       const data = response.data;
       return { data };
     });
+
   // .catch((error: AxiosError) => {
   //   console.error('File upload failed');
   //   return { data: { filename: '', status: '' }, error: error };
   // });
+
   return result;
 };
 
@@ -66,3 +73,17 @@ export const getAnswer = async (inputQuery: string) => {
   };
   return data;
 };
+
+export interface DocumentSummary {
+  response: string;
+}
+
+export const summarizeDocument = async (selectedFileForSummarization: string | null): Promise<DocumentSummary> => {
+  const result = await axios.post(`${uploadUrl}/summarize`, { document: selectedFileForSummarization });
+  const data = {
+    response: result.data.response
+  };
+  return data;
+};
+
+
