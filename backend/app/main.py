@@ -1,8 +1,9 @@
 from fastapi import FastAPI, Depends, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from typing_extensions import Annotated
 from pydantic import BaseModel
-from typing import List
-from fastapi import Request
+from typing import List, Union
+from fastapi import Request, Query
 import typing as t
 import uvicorn
 
@@ -71,7 +72,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 class Reader:
     def __init__(self, img):
         self.img = img
@@ -118,8 +118,8 @@ def pdf_to_doc(pdf_file):
         
     return docs
 
-def get_qa_chain():
-    docsearch = Pinecone.from_existing_index(index_name, embeddings)
+def get_qa_chain(namespace = None):
+    docsearch = Pinecone.from_existing_index(index_name, embeddings, namespace = namespace)
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True, output_key='answer')
     prompt_template = """Use the following pieces of context to answer the question at the end. If the information is not
     provided in the context, please do not make one up.
@@ -153,7 +153,10 @@ async def root(request: Request):
 
 
 @app.post("/upload-files")
-async def upload_file(request: Request, files: List[UploadFile]):
+async def upload_file(request: Request, 
+                      files: List[UploadFile],
+                      file_type: str = Query("Lab Report", enum=["Lab Report", "Prescription", "Other"]),
+                      ):
     
     for file in files:
         filename = file.filename
@@ -179,13 +182,18 @@ async def upload_file(request: Request, files: List[UploadFile]):
     
         if filepath is not None and os.path.exists(filepath):
             os.remove(filepath)
-    docsearch = Pinecone.from_documents(docs, embeddings, index_name=index_name)
+    docsearch = Pinecone.from_documents(docs, embeddings, index_name=index_name, namespace=file_type)
     return {"filename": filename, "status": status}
+
+@app.post("/")
+
 
 
 @app.post("/query")
-async def query_index(request: Request, input_query: UserQuery):
-    qa_chain = get_qa_chain()
+async def query_index(request: Request, 
+                      input_query: UserQuery, 
+                      namespace: str = Query("Lab Report", enum=["Lab Report", "Prescription", "Other"])):
+    qa_chain = get_qa_chain(namespace)
     result = qa_chain({"question": input_query.query})
     print(result)
     return {"response": result['answer'], "relevant_docs": result['source_documents']}
