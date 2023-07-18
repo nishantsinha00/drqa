@@ -7,6 +7,8 @@ from fastapi import Request, Query
 import typing as t
 import uvicorn
 
+import datetime
+
 import azure.ai.vision as sdk
 
 from langchain.embeddings.openai import OpenAIEmbeddings
@@ -107,6 +109,9 @@ def img_to_doc(img_file):
     text = reader()
     docs.append(Document(page_content=text, metadata={"source": img_file, 'page': 0}))
     docs = text_splitter.split_documents(docs)
+    for doc in docs:
+        doc.metadata['date']= datetime.date.today().strftime('%Y-%m-%d')
+        
     return docs
     
         
@@ -115,10 +120,12 @@ def pdf_to_doc(pdf_file):
     loader = PyPDFLoader(pdf_file)
     pages = loader.load_and_split()
     docs = text_splitter.split_documents(pages)
+    for doc in docs:
+        doc.metadata['date']=datetime.date.today().strftime('%Y-%m-%d')
         
     return docs
 
-def get_qa_chain(namespace = None):
+def get_qa_chain(namespace = None, dateRange = None):
     docsearch = Pinecone.from_existing_index(index_name, embeddings, namespace = namespace)
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True, output_key='answer')
     prompt_template = """Use the following pieces of context to answer the question at the end. If the information is not
@@ -133,7 +140,7 @@ def get_qa_chain(namespace = None):
     )
     qa = ConversationalRetrievalChain.from_llm(
         ChatOpenAI(temperature=0.2, model="gpt-3.5-turbo"),
-        docsearch.as_retriever(),
+        docsearch.as_retriever(search_kwargs = {"filter": {"date": {"$in": dateRange}}}),
         memory = memory,
         combine_docs_chain_kwargs={"prompt": PROMPT},
         return_source_documents=True
@@ -192,8 +199,10 @@ async def upload_file(request: Request,
 @app.post("/query")
 async def query_index(request: Request, 
                       input_query: UserQuery, 
-                      namespace: str = Query("Lab Report", enum=["Lab Report", "Prescription", "Other"])):
-    qa_chain = get_qa_chain(namespace)
+                      namespace: str = Query("Lab Report", enum=["Lab Report", "Prescription", "Other"]),
+                      dateRange: Union[List, None] = None):
+    print(dateRange)
+    qa_chain = get_qa_chain(namespace = namespace, dateRange = dateRange)
     result = qa_chain({"question": input_query.query})
     print(result)
     return {"response": result['answer'], "relevant_docs": result['source_documents']}
