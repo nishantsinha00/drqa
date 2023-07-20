@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing_extensions import Annotated
 from pydantic import BaseModel
-from typing import List, Union
+from typing import List, Union, Optional
 from fastapi import Request, Query
 import typing as t
 import uvicorn
@@ -135,12 +135,17 @@ def get_qa_chain(namespace = None, dateRange = None):
     
     Question: {question}
     """
+    if dateRange is None:
+        filter_kwarg = {}
+    else:
+        filter_kwarg = {"date": {"$in": dateRange}}
+        
     PROMPT = PromptTemplate(
         template=prompt_template, input_variables=["context", "question"]
     )
     qa = ConversationalRetrievalChain.from_llm(
         ChatOpenAI(temperature=0.2, model="gpt-3.5-turbo"),
-        docsearch.as_retriever(search_kwargs = {"filter": {"date": {"$in": dateRange}}}),
+        docsearch.as_retriever(search_kwargs = {"filter": filter_kwarg}),
         memory = memory,
         combine_docs_chain_kwargs={"prompt": PROMPT},
         return_source_documents=True
@@ -192,6 +197,15 @@ async def upload_file(request: Request,
     docsearch = Pinecone.from_documents(docs, embeddings, index_name=index_name, namespace=file_type)
     return {"filename": filename, "status": status}
 
+class DateRange(BaseModel):
+    dateRange: Optional[List] = None
+    
+    class Config:
+        schema_extra = {
+            "example": {
+            }
+        }
+
 @app.post("/")
 
 
@@ -199,8 +213,10 @@ async def upload_file(request: Request,
 @app.post("/query")
 async def query_index(request: Request, 
                       input_query: UserQuery, 
+                      dateRange: DateRange,
                       namespace: str = Query("Lab Report", enum=["Lab Report", "Prescription", "Other"]),
-                      dateRange: Union[List, None] = None):
+                      ):
+    dateRange = dateRange.dateRange
     print(dateRange)
     qa_chain = get_qa_chain(namespace = namespace, dateRange = dateRange)
     result = qa_chain({"question": input_query.query})
