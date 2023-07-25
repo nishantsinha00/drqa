@@ -11,6 +11,20 @@ import datetime
 
 import azure.ai.vision as sdk
 
+from scipy.io import wavfile
+
+try:
+    import azure.cognitiveservices.speech as speechsdk
+except ImportError:
+    print("""
+    Importing the Speech SDK for Python failed.
+    Refer to
+    https://docs.microsoft.com/azure/cognitive-services/speech-service/quickstart-python for
+    installation instructions.
+    """)
+    import sys
+    sys.exit(1)
+
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.vectorstores import Pinecone
 import pinecone
@@ -37,6 +51,7 @@ import textwrap
 from dotenv import load_dotenv
 
 import os
+import mimetypes
 
 import psycopg2
 
@@ -132,11 +147,61 @@ class Reader:
 
         return extracted_text
     
+def speech_recognize_continuous_from_file(filename):
+    """performs continuous speech recognition with input from an audio file"""
+    # <SpeechContinuousRecognitionWithFile>
+    speech_config = speechsdk.SpeechConfig(subscription=os.environ['AZ_SPEECH_KEY'], region=os.environ['AZ_SPEECH_REGION'])
+    audio_config = speechsdk.audio.AudioConfig(filename=filename)
+
+    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+
+    done = False
+    recognized_text = ''  # Initialize an empty string for recognized text
+
+    def stop_cb(evt):
+        """callback that signals to stop continuous recognition upon receiving an event `evt`"""
+        print('CLOSING on {}'.format(evt))
+        nonlocal done
+        done = True
+
+    def recognized_cb(evt):
+        """callback that handles the recognized event"""
+        nonlocal recognized_text
+        if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
+            recognized_text += evt.result.text
+
+    # Connect callbacks to the events fired by the speech recognizer
+    speech_recognizer.recognized.connect(recognized_cb)
+    speech_recognizer.session_stopped.connect(stop_cb)
+    speech_recognizer.canceled.connect(stop_cb)
+
+    # Start continuous speech recognition
+    speech_recognizer.start_continuous_recognition()
+    while not done:
+        pass
+
+    speech_recognizer.stop_continuous_recognition()
+
+    return recognized_text
+    
 def img_to_doc(img_file):
     docs = []
     reader = Reader(img=img_file)
     text = reader()
     docs.append(Document(page_content=text, metadata={"source": img_file, 'page': 0}))
+    docs = text_splitter.split_documents(docs)
+    for doc in docs:
+        doc.metadata['date']= datetime.date.today().strftime('%Y-%m-%d')
+        
+    return docs
+
+def audio_to_doc(audio_file):
+    docs = []
+    recognized_text = speech_recognize_continuous_from_file(filename=audio_file)
+    sample_rate, data = wavfile.read(audio_file)
+    len_data = len(data)
+    t = len_data / sample_rate
+    docs.append(Document(page_content=recognized_text, metadata={"source": audio_file, 'Audio Length': t}))
     docs = text_splitter.split_documents(docs)
     for doc in docs:
         doc.metadata['date']= datetime.date.today().strftime('%Y-%m-%d')
@@ -278,10 +343,13 @@ async def upload_file(request: Request,
             contents = await file.read()
             with open(filepath, 'wb') as f:
                 f.write(contents)
-            if(os.path.splitext(filepath)[1] == '.pdf'):
+            mimestart = mimetypes.guess_type(filepath)[0].split('/')
+            if(mimestart[1] == '.pdf'):
                 docs.extend(pdf_to_doc(filepath))
-            else:
+            elif(mimestart[0] == 'image'):
                 docs.extend(img_to_doc(filepath))
+            elif (mimestart[0] == 'audio'):
+                docs.extend(audio_to_doc(filepath))
             summary = get_summary(docs=docs)
             save_file_summary(filename, file_type, summary, conn)
         except Exception as ex:
