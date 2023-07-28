@@ -10,6 +10,7 @@ azure-ai-vision==0.13.0b1
 pypdf==3.12.0
 tiktoken==0.4.0
 psycopg2==2.9.6
+pydub==0.25.1
 sentence-transformers
 pdfminer
 

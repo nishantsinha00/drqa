@@ -12,6 +12,8 @@ import datetime
 import azure.ai.vision as sdk
 
 from scipy.io import wavfile
+from pydub import AudioSegment
+from pydub.silence import split_on_silence
 
 try:
     import azure.cognitiveservices.speech as speechsdk
@@ -51,6 +53,7 @@ import textwrap
 from dotenv import load_dotenv
 
 import os
+import shutil
 import mimetypes
 
 import psycopg2
@@ -147,6 +150,22 @@ class Reader:
 
         return extracted_text
     
+def preproc_audio(file_path):
+    basePath, audio_format = os.path.splitext(file_path)
+    audio_format = audio_format[1:]
+    sound = AudioSegment.from_file(file_path)
+    audio_chunks = split_on_silence(sound
+                            ,min_silence_len = 1000
+                            ,silence_thresh = -45
+                            ,keep_silence = 200
+                        )
+    combined = AudioSegment.empty()
+    for chunk in audio_chunks:
+        combined += chunk
+    wavfilepath = basePath + '.wav'
+    combined.export(wavfilepath, format='wav')
+    return wavfilepath
+    
 def speech_recognize_continuous_from_file(filename):
     """performs continuous speech recognition with input from an audio file"""
     # <SpeechContinuousRecognitionWithFile>
@@ -195,13 +214,15 @@ def img_to_doc(img_file):
         
     return docs
 
-def audio_to_doc(audio_file):
+def audio_to_doc(file_path):
     docs = []
+    audio_file = preproc_audio(file_path)
     recognized_text = speech_recognize_continuous_from_file(filename=audio_file)
     sample_rate, data = wavfile.read(audio_file)
+    name = os.path.basename(audio_file)
     len_data = len(data)
     t = len_data / sample_rate
-    docs.append(Document(page_content=recognized_text, metadata={"source": audio_file, 'Audio Length': t}))
+    docs.append(Document(page_content=recognized_text, metadata={"source": name, 'Audio Length': t}))
     docs = text_splitter.split_documents(docs)
     for doc in docs:
         doc.metadata['date']= datetime.date.today().strftime('%Y-%m-%d')
@@ -337,9 +358,9 @@ async def upload_file(request: Request,
         summary = "success"
         print(file.size)
         try:
-            if not os.path.exists('app/documents'):
-                os.makedirs('app/documents')
-            filepath = os.path.join('app','documents', os.path.basename(filename))
+            if not os.path.exists('documents'):
+                os.makedirs('documents')
+            filepath = os.path.join('documents', os.path.basename(filename))
             contents = await file.read()
             with open(filepath, 'wb') as f:
                 f.write(contents)
@@ -358,10 +379,11 @@ async def upload_file(request: Request,
             if filepath is not None and os.path.exists(filepath):
                 os.remove(filepath)
             # raise HTTPException(summary_code=500, detail="Your file received but couldn't be stored!")
-    
-        if filepath is not None and os.path.exists(filepath):
-            os.remove(filepath)
     conn.close()
+
+    if os.path.exists('documents'):
+        shutil.rmtree('documents')
+        
     docsearch = Pinecone.from_documents(docs, embeddings, index_name=index_name, namespace=file_type)
     return {"filename": filename, "summary": summary}
 
