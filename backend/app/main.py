@@ -1,53 +1,16 @@
-from fastapi import FastAPI, Depends, File, UploadFile, HTTPException
+from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing_extensions import Annotated
 from pydantic import BaseModel
-from typing import List, Union, Optional
+from typing import List, Optional
 from fastapi import Request, Query
-import typing as t
 import uvicorn
 
-import datetime
+from utils import *
 
-import azure.ai.vision as sdk
-
-from scipy.io import wavfile
-from pydub import AudioSegment
-from pydub.silence import split_on_silence
-
-try:
-    import azure.cognitiveservices.speech as speechsdk
-except ImportError:
-    print("""
-    Importing the Speech SDK for Python failed.
-    Refer to
-    https://docs.microsoft.com/azure/cognitive-services/speech-service/quickstart-python for
-    installation instructions.
-    """)
-    import sys
-    sys.exit(1)
-
-from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.vectorstores import Pinecone
 import pinecone
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.llms import OpenAI
-from langchain.memory import ConversationBufferMemory
-from langchain import OpenAI, LLMMathChain
-from langchain.chat_models import ChatOpenAI
-from langchain.chains import RetrievalQA, ConversationalRetrievalChain
-from langchain.document_loaders import PyPDFLoader, TextLoader
-from langchain.document_loaders import UnstructuredFileLoader
-from langchain.docstore.document import Document
-from langchain.prompts import PromptTemplate
 
-from langchain.agents import initialize_agent, Tool
-from langchain.agents import AgentType
-from langchain.tools import BaseTool
-
-from langchain.chains.summarize import load_summarize_chain
-
-from langchain.callbacks import get_openai_callback
 
 import textwrap
 from dotenv import load_dotenv
@@ -77,10 +40,6 @@ if index_name not in pinecone.list_indexes():
         metric='cosine',
         dimension=1536  # 1536 dim of text-embedding-ada-002
     )
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-embeddings = OpenAIEmbeddings(openai_api_key=os.environ["OPENAI_API_KEY"])
-# docs = []
-# from sentence_transformers import SentenceTransformer
 
 document_types = [
     "Lab reports",
@@ -120,198 +79,45 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-class Reader:
-    def __init__(self, img):
-        self.img = img
-        service_options = sdk.VisionServiceOptions(os.environ["AZURE_VISION_ENDPOINT"],
-                                           os.environ["AZURE_VISION_KEY"])
-        vision_source = sdk.VisionSource(filename=self.img)
-        analysis_options = sdk.ImageAnalysisOptions()
-        analysis_options.features = (
-            sdk.ImageAnalysisFeature.CAPTION |
-            sdk.ImageAnalysisFeature.TEXT
-            )
-        analysis_options.language = "en"
-        analysis_options.gender_neutral_caption = True
-        self.analyzer = sdk.ImageAnalyzer(service_options, vision_source, analysis_options)
 
-    def __call__(self):
-        return self.extract_text()
-
-    def extract_text(self):
-        result = self.analyzer.analyze()
-
-        lines = []
-
-        for line in result.text.lines:
-            lines.append(line.content)
-            
-        extracted_text = "\n".join(lines)
-
-        return extracted_text
-    
-def preproc_audio(file_path):
-    basePath, audio_format = os.path.splitext(file_path)
-    audio_format = audio_format[1:]
-    sound = AudioSegment.from_file(file_path)
-    audio_chunks = split_on_silence(sound
-                            ,min_silence_len = 1000
-                            ,silence_thresh = -45
-                            ,keep_silence = 200
-                        )
-    combined = AudioSegment.empty()
-    for chunk in audio_chunks:
-        combined += chunk
-    wavfilepath = basePath + '.wav'
-    combined.export(wavfilepath, format='wav')
-    return wavfilepath
-    
-def speech_recognize_continuous_from_file(filename):
-    """performs continuous speech recognition with input from an audio file"""
-    # <SpeechContinuousRecognitionWithFile>
-    speech_config = speechsdk.SpeechConfig(subscription=os.environ['AZ_SPEECH_KEY'], region=os.environ['AZ_SPEECH_REGION'])
-    audio_config = speechsdk.audio.AudioConfig(filename=filename)
-
-    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
-
-    done = False
-    recognized_text = ''  # Initialize an empty string for recognized text
-
-    def stop_cb(evt):
-        """callback that signals to stop continuous recognition upon receiving an event `evt`"""
-        print('CLOSING on {}'.format(evt))
-        nonlocal done
-        done = True
-
-    def recognized_cb(evt):
-        """callback that handles the recognized event"""
-        nonlocal recognized_text
-        if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
-            recognized_text += evt.result.text
-
-    # Connect callbacks to the events fired by the speech recognizer
-    speech_recognizer.recognized.connect(recognized_cb)
-    speech_recognizer.session_stopped.connect(stop_cb)
-    speech_recognizer.canceled.connect(stop_cb)
-
-    # Start continuous speech recognition
-    speech_recognizer.start_continuous_recognition()
-    while not done:
-        pass
-
-    speech_recognizer.stop_continuous_recognition()
-
-    return recognized_text
-    
-def img_to_doc(img_file):
-    docs = []
-    reader = Reader(img=img_file)
-    text = reader()
-    docs.append(Document(page_content=text, metadata={"source": img_file, 'page': 0}))
-    docs = text_splitter.split_documents(docs)
-    for doc in docs:
-        doc.metadata['date']= datetime.date.today().strftime('%Y-%m-%d')
-        
-    return docs
-
-def audio_to_doc(file_path):
-    docs = []
-    audio_file = preproc_audio(file_path)
-    recognized_text = speech_recognize_continuous_from_file(filename=audio_file)
-    sample_rate, data = wavfile.read(audio_file)
-    name = os.path.basename(audio_file)
-    len_data = len(data)
-    t = len_data / sample_rate
-    docs.append(Document(page_content=recognized_text, metadata={"source": name, 'Audio Length': t}))
-    docs = text_splitter.split_documents(docs)
-    for doc in docs:
-        doc.metadata['date']= datetime.date.today().strftime('%Y-%m-%d')
-        
-    return docs
-          
-def pdf_to_doc(pdf_file):
-    i = 0
-    loader = PyPDFLoader(pdf_file)
-    pages = loader.load_and_split()
-    docs = text_splitter.split_documents(pages)
-    for doc in docs:
-        doc.metadata['date']=datetime.date.today().strftime('%Y-%m-%d')
-        
-    return docs
-
-def get_qa_chain(namespace = None, dateRange = None):
-    docsearch = Pinecone.from_existing_index(index_name, embeddings, namespace = namespace)
-    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True, output_key='answer')
-    prompt_template = """Use the following pieces of context to answer the question at the end. If the information is not
-    provided in the context, please do not make one up.
-    
-    {context}
-    
-    Question: {question}
-    """
-    if dateRange is None:
-        filter_kwarg = {}
-    else:
-        filter_kwarg = {"date": {"$in": dateRange}}
-        
-    PROMPT = PromptTemplate(
-        template=prompt_template, input_variables=["context", "question"]
-    )
-    qa = ConversationalRetrievalChain.from_llm(
-        ChatOpenAI(temperature=0.2, model="gpt-3.5-turbo"),
-        docsearch.as_retriever(search_kwargs = {"filter": filter_kwarg}),
-        memory = memory,
-        combine_docs_chain_kwargs={"prompt": PROMPT},
-        return_source_documents=True
-    ) 
-    return qa
-
-def get_summary(docs):
-    llm = OpenAI(temperature=0)
-    chain = load_summarize_chain(llm, 
-                             chain_type="map_reduce",
-                             verbose = True)
-    output_summary = chain.run(docs)
-    wrapped_text = textwrap.fill(output_summary, width=100)
-    return wrapped_text
-
-def create_file_summaries_table(conn):
+def create_file_data_table(conn):
     try:
         cursor = conn.cursor()
-        create_table_query = '''
-            CREATE TABLE IF NOT EXISTS file_summaries (
+        create_table_query = f'''
+            CREATE TABLE IF NOT EXISTS filedata (
                 id SERIAL PRIMARY KEY,
                 filename TEXT NOT NULL,
                 file_type TEXT NOT NULL,
-                summary TEXT NOT NULL
+                data JSONB NOT NULL
             )
         '''
         cursor.execute(create_table_query)
         conn.commit()
         cursor.close()
     except Exception as ex:
-        print("Error creating file_summaries table:", str(ex))
+        print("Error creating table:", str(ex))
 
-def save_file_summary(filename, file_type, summary, conn):
+def save_file_data(filename, file_type, data, conn):
     try:
+        data = json.dumps(data)
         cursor = conn.cursor()
-        insert_query = "INSERT INTO file_summaries (filename, file_type, summary) VALUES (%s, %s, %s)"
-        cursor.execute(insert_query, (filename, file_type, summary))
+        insert_query = f"INSERT INTO filedata (filename, file_type, data) VALUES (%s, %s, %s)"
+        cursor.execute(insert_query, (filename, file_type, data))
         conn.commit()
         cursor.close()
     except Exception as ex:
         print("Error saving file summary:", str(ex))
 
-def fetch_file_summary_by_filename(filename, conn):
+def fetch_file_data_by_filename(filename, conn):
     try:
         cursor = conn.cursor()
-        select_query = "SELECT summary FROM file_summaries WHERE filename = %s"
+        select_query = "SELECT data FROM filedata WHERE filename = %s"
         cursor.execute(select_query, (filename,))
-        file_summary = cursor.fetchone()
+        data = cursor.fetchone()
         conn.commit()
         cursor.close()
-        if file_summary:
-            return file_summary
+        if data:
+            return data
         else:
             raise HTTPException(status_code=404, detail="File summary not found.")
     except HTTPException:
@@ -351,12 +157,11 @@ async def upload_file(request: Request,
     )
     docs = []
 
-    create_file_summaries_table(conn)
+    create_file_data_table(conn)
 
     for file in files:
         filename = file.filename
         summary = "success"
-        print(file.size)
         try:
             if not os.path.exists('documents'):
                 os.makedirs('documents')
@@ -367,12 +172,17 @@ async def upload_file(request: Request,
             mimestart = mimetypes.guess_type(filepath)[0].split('/')
             if(mimestart[1] == '.pdf'):
                 docs.extend(pdf_to_doc(filepath))
+                data = get_doc_data(docs, file_type)
             elif(mimestart[0] == 'image'):
                 docs.extend(img_to_doc(filepath))
+                data = get_doc_data(docs, file_type)
             elif (mimestart[0] == 'audio'):
+                print('test1')
                 docs.extend(audio_to_doc(filepath))
-            summary = get_summary(docs=docs)
-            save_file_summary(filename, file_type, summary, conn)
+                print('test2')
+                data = get_doc_data(docs, file_type)
+                print('test3')
+            save_file_data(filename, file_type, data, conn)
         except Exception as ex:
             print(str(ex))
             summary = "error"
@@ -399,7 +209,7 @@ async def query_index(request: Request,
     return {"response": result['answer'], "relevant_docs": result['source_documents']}
 
 @app.post("/file-summary")
-def get_file_summary_by_filename(filename: str):
+def get_file_data_by_filename(filename: str):
     # Connect to the PostgreSQL database
     conn = psycopg2.connect(
         host=DATABASE_HOST,
@@ -411,8 +221,8 @@ def get_file_summary_by_filename(filename: str):
 
     try:
         # Fetch file summary from the database based on the filename
-        file_summary = fetch_file_summary_by_filename(filename, conn)
-        return file_summary
+        file_data = fetch_file_data_by_filename(filename, conn)
+        return file_data
     except HTTPException as http_ex:
         # Propagate the HTTPException if raised in the fetch_file_summary_by_filename function
         raise http_ex
