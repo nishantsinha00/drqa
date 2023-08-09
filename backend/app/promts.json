@@ -2,36 +2,34 @@
     "Lab reports": [
         "What is the date of this lab report?",
         "What is the patient's name?",
-        "Who is the signatory for this lab report?",
-        "Provide a summary of the lab report.",
-        "Are there any follow-up instructions?"
+        "Who is the organization for this lab report?"
+    ],
+    "Lab Report Data": [
+        "Provide me the latest HbA1c and fasting blood sugar result with the respective lower and upper limits and units?",
+        "What is the date of the lab report?, report in dd/mm/yyyy format"
     ],
     "Imaging reports": [
         "What is the date of this imaging report?",
         "What is the patient's name?",
         "Who is the signatory for this imaging report?",
-        "Provide a summary of the imaging report.",
         "Are there any follow-up instructions?"
     ],
     "Genetic reports": [
         "What is the date of this genetic report?",
         "What is the patient's name?",
         "Who is the signatory for this genetic report?",
-        "Provide a summary of the genetic report.",
         "Are there any follow-up instructions?"
     ],
     "Histopathology reports": [
         "What is the date of this histopathology report?",
         "What is the patient's name?",
         "Who is the signatory for this histopathology report?",
-        "Provide a summary of the histopathology report.",
         "Are there any follow-up instructions?"
     ],
     "Prescriptions": [
         "What is the date of this prescription?",
         "What is the patient's name?",
         "Who prescribed this medication?",
-        "Provide a summary of the prescription.",
         "Are there any follow-up instructions?",
         "Which medications are indicated (auto-correct, if needed) and what are the patient instructions to take them? List them as bullets and include when to start and stop, if indicated."
     ],
@@ -39,21 +37,18 @@
         "What is the date of this pill bottle photo?",
         "What is the patient's name?",
         "Who provided this medication?",
-        "Provide a summary of the medication in the pill bottle.",
         "Are there any follow-up instructions?"
     ],
     "Clinician notes": [
         "What is the date of these clinician notes?",
         "What is the patient's name?",
         "Who wrote these clinician notes?",
-        "Provide a summary of the clinician notes.",
         "Are there any follow-up instructions?"
     ],
     "Discharge notes": [
         "What is the date of these discharge notes?",
         "What is the patient's name?",
         "Who is the author of these discharge notes?",
-        "Provide a summary of the discharge notes.",
         "Are there any follow-up instructions?",
         "Medications and patient instructions to take them, duration",
         "Any other general care instructions"
@@ -71,21 +66,18 @@
         "What is the date of this healthcare bill?",
         "What is the patient's name?",
         "Who issued this healthcare bill?",
-        "Provide a summary of the healthcare bill.",
         "Are there any follow-up instructions?"
     ],
     "Legal documents": [
         "What is the date of this legal document?",
         "What is the patient's name?",
         "Who is the signatory for this legal document?",
-        "Provide a summary of the legal document.",
         "Are there any follow-up instructions?"
     ],
     "Insurance documents": [
         "What is the date of this insurance document?",
         "What is the patient's name?",
         "Who issued this insurance document?",
-        "Provide a summary of the insurance document.",
         "Contact number for patients and caregivers in case of complaints or questions.",
         "What is my annual deductible?",
         "Is a skilled nursing facility covered? What is the cost?",
@@ -97,21 +89,18 @@
         "What is the date of this advance care planning document?",
         "What is the patient's name?",
         "Who is the signatory for this advance care planning document?",
-        "Provide a summary of the advance care planning document.",
         "Are there any follow-up instructions?"
     ],
     "Financial documents": [
         "What is the date of this financial document?",
         "What is the patient's name?",
         "Who is the signatory for this financial document?",
-        "Provide a summary of the financial document.",
         "Are there any follow-up instructions?"
     ],
     "Miscellaneous": [
         "What is the date of this miscellaneous document?",
         "What is the patient's name?",
         "Who is the signatory for this miscellaneous document?",
-        "Provide a summary of the miscellaneous document.",
         "Are there any follow-up instructions?"
     ]
 }

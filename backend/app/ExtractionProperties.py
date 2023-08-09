@@ -10,7 +10,7 @@ class GeneralProperties(BaseModel):
 class VisitSummaries(GeneralProperties):
     diagnosis: Optional[str] = Field(description="Diagnosis")
     medications: str = Field(description="Correct name of medications")
-    medicationsinstructions: str = Field(description="Detailed description of correct name medications instructions?")
+    medicationsinstructions: str = Field(description="Detailed description of all correct name medications instructions?")
     instructions: str = Field(description="General Instructions")
 
 
@@ -28,6 +28,13 @@ class InsuranceDocumentProperties(GeneralProperties):
 class DischargeSummaryProperties(GeneralProperties):
     pass 
 
-class LabReportProperties(GeneralProperties):
-    value: float = Field(description="Numerical value of lab test")
-    date: str = Field(description="Date of lab report")
+class LabReportDataProperties(BaseModel):
+    HbA1cValue: float = Field(description="Numerical latest value of HbA1c level")
+    HbA1cUnit: str = Field(description="Unit of HbA1c level")
+    HbA1cUL: float = Field(description="Upper Limit of HbA1c level")
+    HbA1cLL: float = Field(description="Lower Limit of HbA1c level")
+    BloodSugarValue: float = Field(description="Numerical latest value of Blood Sugar level")
+    BloodSugarUnit: str = Field(description="Unit of Blood Sugar level")
+    BloodSugarUL: float = Field(description="Upper Limit of Blood Sugar level")
+    BloodSugarLL: float = Field(description="Lower Limit of Blood Sugar level")
+    date: str = Field(description="Date of lab report in dd/mm/yyyy format")

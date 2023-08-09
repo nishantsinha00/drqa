@@ -129,6 +129,54 @@ def pdf_to_doc(pdf_file):
         
     return docs
 
+def UpdateLabReportData(qa):
+    data = {}
+    questions = prompts["Lab Report Data"]
+    if os.path.exists('ReportData.json'):
+        with open('ReportData.json', 'rb') as f:
+            data = json.load(f)
+        
+    else:
+        data = {
+            "HbA1c": {
+                "date": [],
+                "value": [],
+                "unit": "",
+                "LL": 0,
+                "UL": 0
+
+            },
+            "Blood Sugar": {
+                "date": [],
+                "value": [],
+                "unit": "",
+                "LL": 0,
+                "UL": 0
+            }
+        }
+    text = ""
+    for question in questions:
+        result = qa({"question": question})
+        text += result["answer"] + "\n"
+    print(text)
+    llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613")
+    chain = create_extraction_chain_pydantic(pydantic_schema=LabReportDataProperties, llm=llm)
+    result = chain.run(text)
+    extracted_data = result[0]
+    data["HbA1c"]["value"].append(extracted_data.HbA1cValue)
+    data["HbA1c"]["unit"] = extracted_data.HbA1cUnit
+    data["HbA1c"]["LL"] = extracted_data.HbA1cLL
+    data["HbA1c"]["UL"] = extracted_data.HbA1cUL
+    data["Blood Sugar"]["value"].append(extracted_data.BloodSugarValue)
+    data["Blood Sugar"]["unit"] = extracted_data.BloodSugarUnit
+    data["Blood Sugar"]["LL"] = extracted_data.BloodSugarLL
+    data["Blood Sugar"]["UL"] = extracted_data.BloodSugarUL
+    data["HbA1c"]["date"].append(extracted_data.date)
+    data["Blood Sugar"]["date"].append(extracted_data.date)
+    with open("ReportData.json", "w") as outfile:
+        json.dump(data, outfile)
+        
+
 def get_qa_chain(namespace = None, dateRange = None):
     docsearch = Pinecone.from_existing_index(index_name, embeddings, namespace = namespace)
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True, output_key='answer')
@@ -194,6 +242,13 @@ def get_doc_data(docs, fileType):
     vectorstore = FAISS.from_documents(docs, embeddings)
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True, output_key='answer')
     prompt_template = """Use the following pieces of context to answer the question at the end. If the information is not
+    provided in the context, please do not make one up.
+    
+    {context}
+    
+    Question: {question}
+    """
+    prompt_template1 = """Use the following pieces of context to answer the question at the end. If the information is not
     provided in the context, please do not make one up, if the information  provided in the context, has incorrect spelling of the diseases, medications, and labs make sure that you correct it and replace it with the help of the internet. 
     Assume that you are a care advocate and are helping the patient and their caregivers better keep track of patient-related visits, documents, and other needs.
     Make sure to include all important information, names of diseases, medications, and labs. 
@@ -204,7 +259,7 @@ def get_doc_data(docs, fileType):
     Question: {question}
     """
     PROMPT = PromptTemplate(
-        template=prompt_template, input_variables=["context", "question"]
+        template=prompt_template1, input_variables=["context", "question"]
     )
     qa = ConversationalRetrievalChain.from_llm(
         ChatOpenAI(temperature=1, model="gpt-3.5-turbo-0613"),
@@ -212,13 +267,8 @@ def get_doc_data(docs, fileType):
         memory = memory,
         combine_docs_chain_kwargs={"prompt": PROMPT}
     ) 
-    questions = prompts[fileType]
-    text = ""
-    for question in questions:
-        result = qa({"question": question})
-        text += result["answer"] + "\n"
+    
 
-    print(text)
     llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613")
     
     if fileType == "Prescriptions":
@@ -229,8 +279,17 @@ def get_doc_data(docs, fileType):
         chain = create_extraction_chain_pydantic(pydantic_schema=DischargeSummaryProperties, llm=llm)
     elif fileType == "End of Visit Summaries":
         chain = create_extraction_chain_pydantic(pydantic_schema=VisitSummaries, llm=llm)
+    elif fileType == "Lab reports":
+        chain = create_extraction_chain_pydantic(pydantic_schema=GeneralProperties, llm=llm)
+        UpdateLabReportData(qa)
     else:
         chain = create_extraction_chain_pydantic(pydantic_schema=GeneralProperties, llm=llm)
+
+    questions = prompts[fileType]
+    text = ""
+    for question in questions:
+        result = qa({"question": question})
+        text += result["answer"] + "\n"
 
     extracted_data = chain.run(text)
     dataDict = extracted_data[0].dict()

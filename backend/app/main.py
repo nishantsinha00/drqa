@@ -156,7 +156,6 @@ async def upload_file(request: Request,
         dbname=DATABASE_NAME
     )
     docs = []
-
     create_file_data_table(conn)
 
     for file in files:
@@ -170,7 +169,7 @@ async def upload_file(request: Request,
             with open(filepath, 'wb') as f:
                 f.write(contents)
             mimestart = mimetypes.guess_type(filepath)[0].split('/')
-            if(mimestart[1] == '.pdf'):
+            if(mimestart[1] == 'pdf'):
                 docs.extend(pdf_to_doc(filepath))
                 data = get_doc_data(docs, file_type)
             elif(mimestart[0] == 'image'):
@@ -229,6 +228,12 @@ def get_file_data_by_filename(filename: str):
     finally:
         # Close the database connection
         conn.close()
+@app.post("/report-data")
+def get_report_data():
+    # Connect to the PostgreSQL database
+    with open('ReportData.json', 'rb') as f:
+        data = json.load(f)
+    return data
 
 """@app.post("/summarize")
 async def summarize(request: Request):
