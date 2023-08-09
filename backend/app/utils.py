@@ -196,8 +196,8 @@ def get_doc_data(docs, fileType):
     prompt_template = """Use the following pieces of context to answer the question at the end. If the information is not
     provided in the context, please do not make one up, if the information  provided in the context, has incorrect spelling of the diseases, medications, and labs make sure that you correct it and replace it with the help of the internet. 
     Assume that you are a care advocate and are helping the patient and their caregivers better keep track of patient-related visits, documents, and other needs.
-    Keep your responses concise, but make sure to include all important information, names of diseases, medications, and labs. 
-    Respond in an easy-to-understand, empathetic tone. 
+    Make sure to include all important information, names of diseases, medications, and labs. 
+    Respond in an easy-to-understand, empathetic tone as if you are explaining to the patient. 
     
     {context}
     

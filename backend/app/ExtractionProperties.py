@@ -8,7 +8,7 @@ class GeneralProperties(BaseModel):
     followUpIns: Optional[str] = Field(description="Follow-up instructions")
 
 class VisitSummaries(GeneralProperties):
-    diagnosis: Optional[str] = Field(description="Description of diagnosis")
+    diagnosis: Optional[str] = Field(description="Diagnosis")
     medications: str = Field(description="Correct name of medications")
     medicationsinstructions: str = Field(description="Detailed description of correct name medications instructions?")
     instructions: str = Field(description="General Instructions")

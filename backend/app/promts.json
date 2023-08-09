@@ -62,11 +62,10 @@
     "End of Visit Summaries": [
         "What is the date of this end of visit summary?",
         "What is the patient's name?",
-        "Who is the signatory for this end of visit summary?",
-        "Provide the description of the diagnosis if any?",
-        "What are the General instructions indicated, including things to do and not do, exercises, do not include medications?",
-        "What are the clinically correct names of the  medications that are indicated and what are the patient instructions to take them? List them as bullets and include when to start and stop, if indicated?",
-        "Are there any follow-up instructions?"   
+        "Provide the diagnosis if any?",
+        "What are the General instructions indicated, do not include medications?",
+        "What are the clinically correct names of the medications that are indicated and what are the patient instructions to take them? List them as bullets and include when to start and stop, if indicated?",
+        "When is the follow-up visit?"   
     ],
     "Healthcare bills": [
         "What is the date of this healthcare bill?",
