@@ -9,6 +9,7 @@ import uvicorn
 from utils import *
 
 from langchain.vectorstores import Pinecone
+from langchain.callbacks import get_openai_callback
 import pinecone
 
 
@@ -170,8 +171,10 @@ async def upload_file(request: Request,
                 f.write(contents)
             mimestart = mimetypes.guess_type(filepath)[0].split('/')
             if(mimestart[1] == 'pdf'):
-                docs.extend(pdf_to_doc(filepath))
-                data = get_doc_data(docs, file_type)
+                with get_openai_callback() as callback:
+                    docs.extend(pdf_to_doc(filepath))
+                    data = get_doc_data(docs, file_type)
+                    print(callback)
             elif(mimestart[0] == 'image'):
                 docs.extend(img_to_doc(filepath))
                 data = get_doc_data(docs, file_type)
