@@ -176,14 +176,15 @@ async def upload_file(request: Request,
                     data = get_doc_data(docs, file_type)
                     print(callback)
             elif(mimestart[0] == 'image'):
-                docs.extend(img_to_doc(filepath))
-                data = get_doc_data(docs, file_type)
+                with get_openai_callback() as callback:
+                    docs.extend(img_to_doc(filepath))
+                    data = get_doc_data(docs, file_type)
+                    print(callback)
             elif (mimestart[0] == 'audio'):
-                print('test1')
-                docs.extend(audio_to_doc(filepath))
-                print('test2')
-                data = get_doc_data(docs, file_type)
-                print('test3')
+                with get_openai_callback() as callback:
+                    docs.extend(audio_to_doc(filepath))
+                    data = get_doc_data(docs, file_type)
+                    print(callback)
             save_file_data(filename, file_type, data, conn)
         except Exception as ex:
             print(str(ex))
