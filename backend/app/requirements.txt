@@ -12,6 +12,7 @@ pypdf==3.12.0
 tiktoken==0.4.0
 psycopg2==2.9.6
 pydub==0.25.1
+faiss-cpu==1.7.4
 sentence-transformers
 pdfminer
 
