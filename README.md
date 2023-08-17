@@ -2,7 +2,7 @@
 
 ![system architecure](QA-Langchain-LLM.svg)
 
-This repo is to help you build a powerful question answering system that can accurately answer questions by combining [Langchain](https://github.com/hwchase17/langchain) and large language models (LLMs) including OpenAI's GPT3 models.
+This repo is to help you build a powerful question answering system that can accurately answer questions by combining [Langchain](https://github.com/hwchase17/langchain) and large language models (LLMs) including OpenAI's GPT3.5 turbo model.
 
 The image shows the architechture of the system and you can change the code based on your needs. The main components of this code:
 
@@ -17,14 +17,16 @@ https://user-images.githubusercontent.com/28068313/228715902-e38d0b44-6736-4b56-
 
 ## Quick start
 
-If you are going to use [Qdrant Cloud](https://qdrant.tech/documentation/cloud/), then you need to sign up and get your `API_KEY` and `HOST_URL`. Otherwise you can run Qdrant locally. You can check out the documentation [here](https://qdrant.tech/). You also need OpenAI api key.
-
 After getting your keys, you have to create a `.env` file in `backend/app` directory with the following information:
 
 ```python
-QDRANT_HOST=
-QDRANT_API_KEY=
 OPENAI_API_KEY=
+AZURE_VISION_ENDPOINT=
+AZURE_VISION_KEY=
+AZ_SPEECH_KEY=
+AZ_SPEECH_REGION=
+PINECONE_API_KEY=
+PINECONE_ENV=
 ```
 
 Clone the repo:
@@ -38,8 +40,24 @@ npm install
 npm start
 ```
 
-For running the backend, first create a virtual environment and then from `backend/app` directory run:
+For running the backend, first create a virtual environment using python 3.8, install ffmpeg in the environment and then from `backend/app` directory run:
 
+Installing ffmpeg
+- Ubuntu
+```bash
+apt-get -y update && apt-get -y upgrade && apt-get install -y --no-install-recommends ffmpeg
+```
+
+- Windows</br>
+Check this [documentation](https://phoenixnap.com/kb/ffmpeg-windows)
+
+- MacOs
+```bash
+brew update
+brew upgrade
+brew install ffmpeg
+```
+Installing python packages and running the app
 ```bash
 pip install -r requirements.txt
 python main.py
