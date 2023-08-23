@@ -1,6 +1,6 @@
 # Leveraging LangChain and Large Language Models for Accurate PDF-Based Question Answering
 
-![system architecure](QA-Langchain-LLM.svg)
+![system architecure](DocGPT-Architecture.JPG)
 
 This repo is to help you build a powerful question answering system that can accurately answer questions by combining [Langchain](https://github.com/hwchase17/langchain) and large language models (LLMs) including OpenAI's GPT3.5 turbo model.
 
@@ -9,11 +9,9 @@ The image shows the architechture of the system and you can change the code base
 - **Backend:** It has been written in Python using FastAPI framework and does the following:
 
   - handles all the requests coming from client side.
-  - creates the _data processing pipeline_. It converts PDF documents to text and split them to smaller chuncks. You can use it for other document types, thanks to langchain for providng the `data loaders`. Backend also handles the embedding part. It initializes the _embedding model_. I have used `SentenceTransformers` to make it **faster** and **free of cost**. You can use OpenAI embeddings or other ones. I have used [Qdrant](https://qdrant.tech/) cloud (free tier) to host my embeddings and textual documents for fast search and retrieval. It can be replaced by other _vector-based_ databases such as Pinecone, Weaviate, Elasticsearch, etc., either on the cloud or _mostly locally_ hosted, depending on the vendor.
+  - creates the _data processing pipeline_. It converts PDF documents to text and split them to smaller chuncks. You can use it for other document types, thanks to langchain for providng the `data loaders`. Backend also handles the embedding part. It initializes the _embedding model_. I have used text-embedding-ada-002 of openAI to make it **faster**. You can use OpenAI embeddings or other ones. I have used [Pinecone](https://www.pinecone.io/) cloud (free tier) to host my embeddings and textual documents for fast search and retrieval. It can be replaced by other _vector-based_ databases such as Qdrant, Weaviate, Elasticsearch, etc., either on the cloud or _mostly locally_ hosted, depending on the vendor.
 
-- **Frontend:** I developed it using React/Typescript.
-
-https://user-images.githubusercontent.com/28068313/228715902-e38d0b44-6736-4b56-94f6-dc31fa73783a.mp4
+- **Frontend:** is developed using React/Typescript.
 
 ## Quick start
 
@@ -31,7 +29,7 @@ PINECONE_ENV=
 
 Clone the repo:
 
-`git clone https://github.com/mallahyari/drqa.git`
+`git clone https://github.com/nishantsinha00/drqa.git`
 
 Running the frontend is very straightforward. You simply go to the `frontend` directory and run:
 
