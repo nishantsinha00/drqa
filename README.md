@@ -76,4 +76,4 @@ This repo can be used as a general guide line for how to combine your own data w
 
 ## Discussion and Contribution
 
-If you have any comment or feedback, please don't hesitate to use the `Discussions` section and open a new topic. You can also reach out directly via [Linkedin](https://www.linkedin.com/in/mehdiallahyari/) or [Twitter](https://twitter.com/MehdiAllahyari)
+If you have any comment or feedback, please don't hesitate to use the `Discussions` section and open a new topic. You can also reach out directly via [Linkedin](https://www.linkedin.com/in/nishant-sinha-201885191/)
