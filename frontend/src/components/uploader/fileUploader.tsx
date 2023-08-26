@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import axios, {
   AxiosError,
   AxiosResponse,
@@ -19,8 +19,9 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
 import { Config, uploadDocument } from '../../apis/api';
 import FileDetails from '../fileDetails/FileDetails';
+import { OptionContext } from './../../OptionContext';
+// const FILE_SIZE = 5000000;
 
-const FILE_SIZE = 5000000;
 
 const FileUploader = () => {
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
@@ -28,19 +29,18 @@ const FileUploader = () => {
   const [disabled, setDisabled] = useState<boolean>(true);
   const [open, setOpen] = useState<boolean>(false);
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const { selectedOption, setSelectedOption } = React.useContext(OptionContext);
 
+  const handleOptionChange = (event: React.ChangeEvent<{ value: unknown }>) => {
+    setSelectedOption(event.target.value as string);
+  };
   const handleFilesSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
       const files = Array.from(event.target.files);
 
-      if (files.every((file) => file.size < FILE_SIZE)) {
-        setSelectedFiles(event.target.files);
-        setUploadProgress(0);
-        setDisabled(false);
-      } else {
-        setOpen(true);
-        setDisabled(true);
-      }
+      setSelectedFiles(event.target.files);
+      setUploadProgress(0);
+      setDisabled(false);
     }
   };
 
@@ -62,16 +62,25 @@ const FileUploader = () => {
         },
       };
 
-      const result = await uploadDocument('upload-files', selectedFiles, config);
+      const result = await uploadDocument('upload-files', selectedFiles, selectedOption, config); // Pass selectedOption as the fourth argument
       setUploadProgress(0);
       setDisabled(true);
 
       // Assuming the server returns the filenames of all uploaded files
-      if(result.data && result.data.filename) {
+      if (result.data && result.data.filename) {
         setUploadedFiles([...uploadedFiles, result.data.filename]);
       }
     }
   };
+
+  interface Data {
+    files: FileList;
+    file_type: string;
+  }
+
+  // const getFilesByType = (type: string, files: File[]) => {
+  //   return files.filter(file => file.type === type);
+  // }
 
   return (
     <Box className="uploader-root">
@@ -92,7 +101,7 @@ const FileUploader = () => {
             </Box>
             <Box my={3} display="flex" flexDirection="column">
               <Typography variant="body1" gutterBottom>
-                <i>Your file has to be smaller than 5MB.</i>
+                {/* <i>Your file has to be smaller than 5MB.</i> */}
               </Typography>
               <Button
                 sx={{ width: '200px' }}
@@ -107,7 +116,7 @@ const FileUploader = () => {
                   multiple
                   type="file"
                   onChange={handleFilesSelect}
-                />
+                                  />
               </Button>
             </Box>
 
@@ -131,10 +140,7 @@ const FileUploader = () => {
 
       {uploadProgress > 0 && (
         <Box mt={2}>
-          <CircularProgress
-            sx={{ margin: 'auto', width: '100%' }}
-          />
-
+          <CircularProgress sx={{ margin: 'auto', width: '100%' }} />
         </Box>
       )}
     </Box>
